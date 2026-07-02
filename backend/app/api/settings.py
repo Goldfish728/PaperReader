@@ -16,7 +16,7 @@ def resolved_settings(session: Session) -> SettingsRead:
     env = get_settings()
     repo = SettingsRepository(session)
     values = repo.list_all()
-    api_key = values.get("api_key", env.api_key)
+    api_key = values.get("api_key") or env.api_key
     return SettingsRead(
         api_base_url=values.get("api_base_url", env.api_base_url),
         chat_model=values.get("chat_model", env.chat_model),

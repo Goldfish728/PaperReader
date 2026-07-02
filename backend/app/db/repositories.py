@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from backend.app.db.models import AppSetting
+from backend.app.db.models import AppSetting, utc_now
 
 
 class SettingsRepository:
@@ -17,7 +17,9 @@ class SettingsRepository:
             setting = AppSetting(key=key, value=value)
             self.session.add(setting)
         else:
-            setting.value = value
+            if setting.value != value:
+                setting.value = value
+                setting.updated_at = utc_now()
             self.session.add(setting)
 
     def list_all(self) -> dict[str, str]:
