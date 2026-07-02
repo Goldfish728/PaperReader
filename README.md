@@ -12,12 +12,49 @@ First-version capabilities:
 
 ## Local Development
 
+### Install Backend
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
-uvicorn backend.app.main:app --reload
 ```
 
-The frontend setup is added in a later task.
+### Run Backend
+
+```bash
+source .venv/bin/activate
+uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+### Run Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`.
+
+## Model Configuration
+
+The backend reads `.env` defaults:
+
+```bash
+PAPER_READER_API_BASE_URL=https://api.openai.com/v1
+PAPER_READER_API_KEY=...
+PAPER_READER_CHAT_MODEL=gpt-4.1-mini
+```
+
+The settings dialog can override these values locally.
+
+## Supported Inputs
+
+- Text-based PDF upload.
+- PDF URL.
+- arXiv link or ID.
+- Readable web article URL.
+
+Scanned PDFs without extractable text are not supported in the first version.
