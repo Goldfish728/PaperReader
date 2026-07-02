@@ -58,6 +58,24 @@ def test_import_url_persists_normalized_non_arxiv_values():
     assert body["original_url"] == "https://example.com/paper.pdf#page=2"
 
 
+def test_import_url_schedules_fetch_and_processing(monkeypatch):
+    processed: list[str] = []
+
+    async def fake_fetch_and_process(document_id: str) -> None:
+        processed.append(document_id)
+
+    monkeypatch.setattr(
+        "backend.app.api.documents._fetch_and_process_task",
+        fake_fetch_and_process,
+    )
+    client = TestClient(create_app())
+
+    response = client.post("/api/documents/import-url", json={"value": "2401.12345"})
+
+    assert response.status_code == 200
+    assert processed == [response.json()["id"]]
+
+
 def test_list_documents_returns_created_document():
     client = TestClient(create_app())
     client.post("/api/documents/import-url", json={"value": "https://example.com/paper.pdf"})
@@ -97,6 +115,29 @@ def test_upload_pdf_creates_document():
     asset_path = Path(asset.path)
     assert data_dir() in asset_path.parents
     assert asset_path.read_bytes() == pdf_bytes
+
+
+def test_upload_pdf_schedules_existing_source_processing(monkeypatch):
+    processed: list[tuple[str, str]] = []
+
+    async def fake_process_existing_source(document_id: str, source_path: str) -> None:
+        processed.append((document_id, source_path))
+
+    monkeypatch.setattr(
+        "backend.app.api.documents._process_existing_source_task",
+        fake_process_existing_source,
+    )
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/documents/upload",
+        files={"file": ("paper.pdf", b"%PDF-1.7\nfake pdf bytes", "application/pdf")},
+    )
+
+    assert response.status_code == 200
+    document_id = response.json()["id"]
+    expected_path = data_dir() / "documents" / document_id / "original.pdf"
+    assert processed == [(document_id, str(expected_path))]
 
 
 def test_upload_rejects_non_pdf():

@@ -1,14 +1,24 @@
 import json
 import shutil
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session
 
 from backend.app.core.config import get_settings
 from backend.app.core.paths import document_dir
-from backend.app.db.engine import get_session
-from backend.app.db.models import AssetKind, ChatMessage, ChatRole, NoteKind, SourceType, new_id
+from backend.app.db.engine import get_engine, get_session
+from backend.app.db.models import (
+    AssetKind,
+    ChatMessage,
+    ChatRole,
+    Document,
+    DocumentStatus,
+    NoteKind,
+    SourceType,
+    new_id,
+)
 from backend.app.db.repositories import (
     AssetRepository,
     ChatRepository,
@@ -26,7 +36,8 @@ from backend.app.schemas.documents import (
     RelatedChunkRead,
 )
 from backend.app.services.chat_engine import answer_question
-from backend.app.services.fetcher import save_uploaded_pdf
+from backend.app.services.fetcher import download_html, download_pdf, save_uploaded_pdf
+from backend.app.services.job_manager import mark_failed, process_existing_source
 from backend.app.services.model_client import ModelClient
 from backend.app.services.source_detector import detect_text_source
 
@@ -98,21 +109,31 @@ async def chat(
 
 
 @router.post("/import-url", response_model=DocumentRead)
-def import_url(payload: ImportUrlRequest, session: SessionDependency) -> DocumentRead:
+def import_url(
+    payload: ImportUrlRequest,
+    background_tasks: BackgroundTasks,
+    session: SessionDependency,
+) -> DocumentRead:
     detected = detect_text_source(payload.value)
     title = detected.normalized_value
     original_url = (
         payload.value if detected.source_type == SourceType.ARXIV else detected.normalized_value
     )
-    return DocumentRepository(session).create_document(
+    document = DocumentRepository(session).create_document(
         title=title,
         source_type=detected.source_type,
         original_url=original_url,
     )
+    background_tasks.add_task(_fetch_and_process_task, document.id)
+    return document
 
 
 @router.post("/upload", response_model=DocumentRead)
-async def upload_pdf(file: UploadFileDependency, session: SessionDependency) -> DocumentRead:
+async def upload_pdf(
+    file: UploadFileDependency,
+    background_tasks: BackgroundTasks,
+    session: SessionDependency,
+) -> DocumentRead:
     document_id = new_id()
     try:
         path = await save_uploaded_pdf(document_id, file)
@@ -141,6 +162,7 @@ async def upload_pdf(file: UploadFileDependency, session: SessionDependency) -> 
         raise
 
     session.refresh(document)
+    background_tasks.add_task(_process_existing_source_task, document.id, str(path))
     return document
 
 
@@ -164,6 +186,92 @@ def _model_client_from_settings(session: Session) -> ModelClient:
         ),
         temperature=float(values.get("temperature", env.temperature)),
     )
+
+
+async def _fetch_and_process_task(document_id: str) -> None:
+    with Session(get_engine()) as session:
+        document = DocumentRepository(session).get_document(document_id)
+        if document is None:
+            return
+        try:
+            DocumentRepository(session).update_status(document, DocumentStatus.FETCHING)
+            source_path = await _download_source_for_document(session, document)
+        except Exception as exc:
+            mark_failed(session, document, str(exc))
+            return
+        await process_existing_source(
+            session=session,
+            document=document,
+            source_path=source_path,
+            model_client=_model_client_from_settings(session),
+        )
+
+
+async def _process_existing_source_task(document_id: str, source_path: str) -> None:
+    with Session(get_engine()) as session:
+        document = DocumentRepository(session).get_document(document_id)
+        if document is None:
+            return
+        await process_existing_source(
+            session=session,
+            document=document,
+            source_path=Path(source_path),
+            model_client=_model_client_from_settings(session),
+        )
+
+
+async def _download_source_for_document(session: Session, document: Document) -> Path:
+    timeout_seconds = _request_timeout_seconds(session)
+    if document.source_type == SourceType.ARXIV:
+        source_path = await download_pdf(
+            document.id,
+            f"https://arxiv.org/pdf/{document.title}.pdf",
+            timeout_seconds=timeout_seconds,
+        )
+        AssetRepository(session).create_asset(
+            document_id=document.id,
+            kind=AssetKind.ORIGINAL_PDF,
+            path=str(source_path),
+            label="Original PDF",
+        )
+        return source_path
+    if document.source_type == SourceType.PDF_URL:
+        if not document.original_url:
+            raise ValueError("PDF URL document is missing original URL.")
+        source_path = await download_pdf(
+            document.id,
+            document.original_url,
+            timeout_seconds=timeout_seconds,
+        )
+        AssetRepository(session).create_asset(
+            document_id=document.id,
+            kind=AssetKind.ORIGINAL_PDF,
+            path=str(source_path),
+            label="Original PDF",
+        )
+        return source_path
+    if document.source_type == SourceType.HTML_ARTICLE:
+        if not document.original_url:
+            raise ValueError("HTML article document is missing original URL.")
+        source_path = await download_html(
+            document.id,
+            document.original_url,
+            timeout_seconds=timeout_seconds,
+        )
+        AssetRepository(session).create_asset(
+            document_id=document.id,
+            kind=AssetKind.SOURCE_HTML,
+            path=str(source_path),
+            label="Source HTML",
+        )
+        return source_path
+    raise ValueError(f"Cannot fetch source for document type {document.source_type}.")
+
+
+def _request_timeout_seconds(session: Session) -> int:
+    env = get_settings()
+    values = SettingsRepository(session).list_all()
+    return int(values.get("request_timeout_seconds", env.request_timeout_seconds))
 
 
 def _message_to_read(message: ChatMessage) -> ChatMessageRead:
