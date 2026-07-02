@@ -6,6 +6,7 @@ from backend.app.db.models import (
     Document,
     DocumentAsset,
     DocumentStatus,
+    Figure,
     Section,
     SourceType,
     utc_now,
@@ -136,5 +137,31 @@ class SectionRepository:
             )
             self.session.add(section)
             created.append(section)
+        self.session.commit()
+        return created
+
+
+class FigureRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def replace_figures(self, document_id: str, extracted_figures) -> list[Figure]:
+        existing = self.session.exec(
+            select(Figure).where(Figure.document_id == document_id)
+        ).all()
+        for row in existing:
+            self.session.delete(row)
+        created: list[Figure] = []
+        for item in extracted_figures:
+            figure = Figure(
+                document_id=document_id,
+                label=item.label,
+                caption=item.caption,
+                page=item.page,
+                image_path=str(item.image_path),
+                order=item.order,
+            )
+            self.session.add(figure)
+            created.append(figure)
         self.session.commit()
         return created
