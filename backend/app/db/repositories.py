@@ -6,6 +6,7 @@ from backend.app.db.models import (
     Document,
     DocumentAsset,
     DocumentStatus,
+    Section,
     SourceType,
     utc_now,
 )
@@ -109,3 +110,31 @@ class AssetRepository:
         else:
             self.session.flush()
         return asset
+
+
+class SectionRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def replace_sections(self, document_id: str, parsed_sections) -> list[Section]:
+        existing = self.session.exec(
+            select(Section).where(Section.document_id == document_id)
+        ).all()
+        for row in existing:
+            self.session.delete(row)
+        created: list[Section] = []
+        for parsed in parsed_sections:
+            section = Section(
+                document_id=document_id,
+                number=parsed.number,
+                title=parsed.title,
+                level=parsed.level,
+                order=parsed.order,
+                page_start=parsed.page_start,
+                page_end=parsed.page_end,
+                text=parsed.text,
+            )
+            self.session.add(section)
+            created.append(section)
+        self.session.commit()
+        return created
