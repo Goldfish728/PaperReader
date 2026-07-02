@@ -2,6 +2,7 @@
 
 # Local app data and user-provided papers
 data/
+.worktrees/
 
 # Secrets and local environment overrides
 .env
