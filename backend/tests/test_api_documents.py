@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
@@ -168,3 +169,67 @@ def test_missing_note_returns_404():
     response = client.get(f"/api/documents/{created['id']}/notes/structured_reading")
 
     assert response.status_code == 404
+
+
+def test_list_chat_history_returns_saved_messages():
+    client = TestClient(create_app())
+    created = client.post("/api/documents/import-url", json={"value": "2401.12345"}).json()
+
+    response = client.get(f"/api/documents/{created['id']}/chat")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_post_chat_returns_404_for_missing_document():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/documents/missing-document/chat",
+        json={"question": "这篇论文的方法是什么？"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Document not found."
+
+
+def test_post_chat_saves_user_and_assistant_messages(monkeypatch):
+    async def fake_answer_question(session, document_id, question, model_client):
+        return SimpleNamespace(
+            answer=f"回答：{question}",
+            related_chunks=[
+                SimpleNamespace(
+                    chunk_id="chunk-1",
+                    section_label="2 Method",
+                    page_start=3,
+                    page_end=4,
+                    text="The method uses a retrieval grounded approach.",
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        "backend.app.api.documents.answer_question",
+        fake_answer_question,
+    )
+    client = TestClient(create_app())
+    created = client.post("/api/documents/import-url", json={"value": "2401.12345"}).json()
+
+    response = client.post(
+        f"/api/documents/{created['id']}/chat",
+        json={"question": "方法是什么？"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["answer"] == "回答：方法是什么？"
+    assert body["related_chunks"][0]["section_label"] == "2 Method"
+
+    history_response = client.get(f"/api/documents/{created['id']}/chat")
+
+    assert history_response.status_code == 200
+    messages = history_response.json()
+    assert [message["role"] for message in messages] == ["user", "assistant"]
+    assert messages[0]["content"] == "方法是什么？"
+    assert messages[1]["content"] == "回答：方法是什么？"
+    assert messages[1]["related_chunks"][0]["section_label"] == "2 Method"

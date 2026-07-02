@@ -1,8 +1,15 @@
+import json
+from collections.abc import Iterable
+from dataclasses import asdict, is_dataclass
+from typing import Any
+
 from sqlmodel import Session, select
 
 from backend.app.db.models import (
     AppSetting,
     AssetKind,
+    ChatMessage,
+    ChatRole,
     Chunk,
     Document,
     DocumentAsset,
@@ -227,3 +234,51 @@ class NoteRepository:
         return self.session.exec(
             select(Note).where(Note.document_id == document_id, Note.kind == kind)
         ).first()
+
+
+class ChatRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add_message(
+        self,
+        document_id: str,
+        role: ChatRole | str,
+        content: str,
+        related_chunks: Iterable[Any] | None = None,
+    ) -> ChatMessage:
+        message = ChatMessage(
+            document_id=document_id,
+            role=ChatRole(role),
+            content=content,
+            related_chunks_json=json.dumps(
+                [_to_related_chunk_dict(item) for item in related_chunks or []],
+                ensure_ascii=False,
+            ),
+        )
+        self.session.add(message)
+        self.session.commit()
+        self.session.refresh(message)
+        return message
+
+    def list_messages(self, document_id: str) -> list[ChatMessage]:
+        return list(
+            self.session.exec(
+                select(ChatMessage)
+                .where(ChatMessage.document_id == document_id)
+                .order_by(ChatMessage.created_at.asc())
+            ).all()
+        )
+
+
+def _to_related_chunk_dict(item: Any) -> dict[str, Any]:
+    if isinstance(item, dict):
+        return dict(item)
+    if hasattr(item, "model_dump"):
+        return item.model_dump()
+    if is_dataclass(item):
+        return asdict(item)
+    return {
+        field: getattr(item, field)
+        for field in ("chunk_id", "section_label", "page_start", "page_end", "text")
+    }
