@@ -149,3 +149,22 @@ def test_upload_rolls_back_document_and_file_when_asset_creation_fails(monkeypat
 
     documents_root = data_dir() / "documents"
     assert not documents_root.exists() or list(documents_root.iterdir()) == []
+
+
+def test_get_document_detail():
+    client = TestClient(create_app())
+    created = client.post("/api/documents/import-url", json={"value": "2401.12345"}).json()
+
+    response = client.get(f"/api/documents/{created['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["id"] == created["id"]
+
+
+def test_missing_note_returns_404():
+    client = TestClient(create_app())
+    created = client.post("/api/documents/import-url", json={"value": "2401.12345"}).json()
+
+    response = client.get(f"/api/documents/{created['id']}/notes/structured_reading")
+
+    assert response.status_code == 404

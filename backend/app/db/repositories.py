@@ -73,6 +73,9 @@ class DocumentRepository:
     def list_documents(self) -> list[Document]:
         return list(self.session.exec(select(Document).order_by(Document.created_at.desc())).all())
 
+    def get_document(self, document_id: str) -> Document | None:
+        return self.session.get(Document, document_id)
+
     def update_status(
         self,
         document: Document,

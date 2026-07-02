@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session
 
 from backend.app.db.engine import get_session
-from backend.app.db.models import AssetKind, SourceType, new_id
-from backend.app.db.repositories import AssetRepository, DocumentRepository
-from backend.app.schemas.documents import DocumentRead, ImportUrlRequest
+from backend.app.db.models import AssetKind, NoteKind, SourceType, new_id
+from backend.app.db.repositories import AssetRepository, DocumentRepository, NoteRepository
+from backend.app.schemas.documents import DocumentRead, ImportUrlRequest, NoteRead
 from backend.app.services.fetcher import save_uploaded_pdf
 from backend.app.services.source_detector import detect_text_source
 
@@ -19,6 +19,26 @@ UploadFileDependency = Annotated[UploadFile, File(...)]
 @router.get("", response_model=list[DocumentRead])
 def list_documents(session: SessionDependency) -> list[DocumentRead]:
     return DocumentRepository(session).list_documents()
+
+
+@router.get("/{document_id}", response_model=DocumentRead)
+def get_document(document_id: str, session: SessionDependency) -> DocumentRead:
+    document = DocumentRepository(session).get_document(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return document
+
+
+@router.get("/{document_id}/notes/{kind}", response_model=NoteRead)
+def get_note(
+    document_id: str,
+    kind: NoteKind,
+    session: SessionDependency,
+) -> NoteRead:
+    note = NoteRepository(session).get_note(document_id, kind)
+    if note is None:
+        raise HTTPException(status_code=404, detail="Note not found.")
+    return NoteRead(document_id=document_id, kind=kind, markdown=note.markdown)
 
 
 @router.post("/import-url", response_model=DocumentRead)

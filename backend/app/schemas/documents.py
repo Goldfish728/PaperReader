@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
-from backend.app.db.models import DocumentStatus, SourceType
+from backend.app.db.models import DocumentStatus, NoteKind, SourceType
 
 
 class ImportUrlRequest(BaseModel):
@@ -26,3 +26,9 @@ class DocumentRead(BaseModel):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class NoteRead(BaseModel):
+    document_id: str
+    kind: NoteKind
+    markdown: str
