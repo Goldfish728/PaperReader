@@ -14,8 +14,12 @@ First-version capabilities:
 
 ### Install Backend
 
+Use Python 3.11 or newer. If `python3 -V` reports an older version, create the
+environment with a newer interpreter first, for example
+`uv venv --python 3.12 .venv`.
+
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
