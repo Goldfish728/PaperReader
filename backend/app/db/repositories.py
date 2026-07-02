@@ -8,6 +8,8 @@ from backend.app.db.models import (
     DocumentAsset,
     DocumentStatus,
     Figure,
+    Note,
+    NoteKind,
     Section,
     SourceType,
     utc_now,
@@ -193,3 +195,32 @@ class ChunkRepository:
             created.append(chunk)
         self.session.commit()
         return created
+
+
+class NoteRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def replace_note(
+        self,
+        *,
+        document_id: str,
+        kind: NoteKind,
+        markdown: str,
+        path: str,
+    ) -> Note:
+        existing = self.session.exec(
+            select(Note).where(Note.document_id == document_id, Note.kind == kind)
+        ).all()
+        for row in existing:
+            self.session.delete(row)
+        note = Note(document_id=document_id, kind=kind, markdown=markdown, path=path)
+        self.session.add(note)
+        self.session.commit()
+        self.session.refresh(note)
+        return note
+
+    def get_note(self, document_id: str, kind: NoteKind) -> Note | None:
+        return self.session.exec(
+            select(Note).where(Note.document_id == document_id, Note.kind == kind)
+        ).first()
