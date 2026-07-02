@@ -1,3 +1,4 @@
+import shutil
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -42,16 +43,26 @@ async def upload_pdf(file: UploadFileDependency, session: SessionDependency) -> 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    document = DocumentRepository(session).create_document(
-        document_id=document_id,
-        title=file.filename or "uploaded.pdf",
-        source_type=SourceType.UPLOADED_PDF,
-        original_url=None,
-    )
-    AssetRepository(session).create_asset(
-        document_id=document.id,
-        kind=AssetKind.ORIGINAL_PDF,
-        path=str(path),
-        label="Original PDF",
-    )
+    try:
+        document = DocumentRepository(session).create_document(
+            document_id=document_id,
+            title=file.filename or "uploaded.pdf",
+            source_type=SourceType.UPLOADED_PDF,
+            original_url=None,
+            commit=False,
+        )
+        AssetRepository(session).create_asset(
+            document_id=document.id,
+            kind=AssetKind.ORIGINAL_PDF,
+            path=str(path),
+            label="Original PDF",
+            commit=False,
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        shutil.rmtree(path.parent, ignore_errors=True)
+        raise
+
+    session.refresh(document)
     return document

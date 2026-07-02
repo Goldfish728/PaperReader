@@ -46,6 +46,7 @@ class DocumentRepository:
         source_type: SourceType,
         original_url: str | None = None,
         document_id: str | None = None,
+        commit: bool = True,
     ) -> Document:
         values = {
             "title": title,
@@ -57,8 +58,11 @@ class DocumentRepository:
             values["id"] = document_id
         document = Document(**values)
         self.session.add(document)
-        self.session.commit()
-        self.session.refresh(document)
+        if commit:
+            self.session.commit()
+            self.session.refresh(document)
+        else:
+            self.session.flush()
         return document
 
     def list_documents(self) -> list[Document]:
@@ -90,6 +94,7 @@ class AssetRepository:
         kind: AssetKind,
         path: str,
         label: str | None = None,
+        commit: bool = True,
     ) -> DocumentAsset:
         asset = DocumentAsset(
             document_id=document_id,
@@ -98,6 +103,9 @@ class AssetRepository:
             label=label,
         )
         self.session.add(asset)
-        self.session.commit()
-        self.session.refresh(asset)
+        if commit:
+            self.session.commit()
+            self.session.refresh(asset)
+        else:
+            self.session.flush()
         return asset
