@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from backend.app.db.models import (
     AppSetting,
     AssetKind,
+    Chunk,
     Document,
     DocumentAsset,
     DocumentStatus,
@@ -163,5 +164,32 @@ class FigureRepository:
             )
             self.session.add(figure)
             created.append(figure)
+        self.session.commit()
+        return created
+
+
+class ChunkRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def replace_chunks(self, document_id: str, chunk_drafts) -> list[Chunk]:
+        existing = self.session.exec(
+            select(Chunk).where(Chunk.document_id == document_id)
+        ).all()
+        for row in existing:
+            self.session.delete(row)
+        created: list[Chunk] = []
+        for draft in chunk_drafts:
+            chunk = Chunk(
+                document_id=draft.document_id,
+                section_id=draft.section_id,
+                section_label=draft.section_label,
+                page_start=draft.page_start,
+                page_end=draft.page_end,
+                order=draft.order,
+                text=draft.text,
+            )
+            self.session.add(chunk)
+            created.append(chunk)
         self.session.commit()
         return created

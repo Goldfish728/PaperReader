@@ -25,7 +25,12 @@ def init_db() -> None:
     # Import models so SQLModel metadata is populated before create_all.
     import backend.app.db.models  # noqa: F401
 
-    SQLModel.metadata.create_all(get_engine())
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        from backend.app.db.fts import init_fts
+
+        init_fts(session)
 
 
 def get_session():
