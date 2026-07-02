@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session
 
 from backend.app.core.config import get_settings
+from backend.app.core.paths import document_dir
 from backend.app.db.engine import get_session
 from backend.app.db.models import AssetKind, ChatMessage, ChatRole, NoteKind, SourceType, new_id
 from backend.app.db.repositories import (
@@ -141,6 +142,14 @@ async def upload_pdf(file: UploadFileDependency, session: SessionDependency) -> 
 
     session.refresh(document)
     return document
+
+
+@router.delete("/{document_id}", status_code=204)
+def delete_document(document_id: str, session: SessionDependency) -> None:
+    deleted = DocumentRepository(session).delete_document(document_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    shutil.rmtree(document_dir(document_id), ignore_errors=True)
 
 
 def _model_client_from_settings(session: Session) -> ModelClient:

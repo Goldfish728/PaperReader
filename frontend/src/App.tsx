@@ -15,7 +15,11 @@ export function App() {
   async function refreshDocuments() {
     const list = await api.listDocuments();
     setDocuments(list);
-    setSelectedId((current) => current ?? list[0]?.id ?? null);
+    setSelectedId((current) =>
+      current && list.some((document) => document.id === current)
+        ? current
+        : list[0]?.id ?? null
+    );
   }
 
   useEffect(() => {
@@ -54,6 +58,10 @@ export function App() {
           documents={documents}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          onDelete={async (id) => {
+            await api.deleteDocument(id);
+            await refreshDocuments();
+          }}
         />
       </section>
       <section className="reader">

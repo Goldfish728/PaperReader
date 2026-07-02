@@ -50,6 +50,22 @@ export interface ChatResponse {
   related_chunks: RelatedChunkRead[];
 }
 
+export interface SettingsRead {
+  api_base_url: string;
+  chat_model: string;
+  request_timeout_seconds: number;
+  temperature: number;
+  api_key_configured: boolean;
+}
+
+export interface SettingsUpdate {
+  api_base_url: string;
+  api_key: string;
+  chat_model: string;
+  request_timeout_seconds: number;
+  temperature: number;
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -57,6 +73,14 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(body.detail || `Request failed: ${response.status}`);
   }
   return response.json() as Promise<T>;
+}
+
+async function requestNoContent(url: string, options?: RequestInit): Promise<void> {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || `Request failed: ${response.status}`);
+  }
 }
 
 export const api = {
@@ -76,6 +100,8 @@ export const api = {
       body: form
     });
   },
+  deleteDocument: (id: string) =>
+    requestNoContent(`/api/documents/${id}`, { method: "DELETE" }),
   getNote: (id: string, kind: "structured_reading" | "deep_reading") =>
     request<NoteRead>(`/api/documents/${id}/notes/${kind}`),
   listChat: (id: string) => request<ChatMessageRead[]>(`/api/documents/${id}/chat`),
@@ -84,5 +110,12 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question })
+    }),
+  getSettings: () => request<SettingsRead>("/api/settings"),
+  updateSettings: (payload: SettingsUpdate) =>
+    request<SettingsRead>("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     })
 };

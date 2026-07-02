@@ -116,17 +116,35 @@ button:disabled {
 
 .document-item {
   display: grid;
+  grid-template-columns: 1fr 36px;
   align-items: start;
-  justify-content: stretch;
-  text-align: left;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  padding: 10px;
+  border: 1px solid #c7ccd6;
+  border-radius: 6px;
+  padding: 8px;
 }
 
 .document-item.selected {
   border-color: #2864d8;
   background: #eef4ff;
+}
+
+.document-select {
+  display: grid;
+  justify-content: stretch;
+  text-align: left;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.document-delete {
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .document-title {
@@ -235,6 +253,8 @@ button:disabled {
 }
 
 .settings-dialog {
+  display: grid;
+  gap: 14px;
   width: min(520px, calc(100vw - 32px));
   background: #ffffff;
   border-radius: 8px;
@@ -251,4 +271,24 @@ button:disabled {
 .settings-dialog h2 {
   margin: 0;
   font-size: 18px;
+}
+
+.settings-dialog label {
+  display: grid;
+  gap: 6px;
+  color: #3f4752;
+  font-size: 13px;
+}
+
+.settings-dialog input {
+  min-width: 0;
+  border: 1px solid #c7ccd6;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #202124;
+}
+
+.settings-dialog button[type="submit"] {
+  justify-self: start;
+  padding: 0 14px;
 }

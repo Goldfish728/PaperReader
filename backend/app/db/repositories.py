@@ -3,8 +3,10 @@ from collections.abc import Iterable
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
+from sqlalchemy import text
 from sqlmodel import Session, select
 
+from backend.app.db.fts import init_fts
 from backend.app.db.models import (
     AppSetting,
     AssetKind,
@@ -82,6 +84,25 @@ class DocumentRepository:
 
     def get_document(self, document_id: str) -> Document | None:
         return self.session.get(Document, document_id)
+
+    def delete_document(self, document_id: str) -> bool:
+        document = self.session.get(Document, document_id)
+        if document is None:
+            return False
+        for model in (ChatMessage, Note, Chunk, Section, Figure, DocumentAsset):
+            rows = self.session.exec(
+                select(model).where(model.document_id == document_id)
+            ).all()
+            for row in rows:
+                self.session.delete(row)
+        init_fts(self.session, commit=False)
+        self.session.execute(
+            text("DELETE FROM chunks_fts WHERE document_id = :document_id"),
+            {"document_id": document_id},
+        )
+        self.session.delete(document)
+        self.session.commit()
+        return True
 
     def update_status(
         self,

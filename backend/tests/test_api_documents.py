@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 
 from backend.app.core.paths import data_dir
 from backend.app.db.engine import get_engine
-from backend.app.db.models import AssetKind, Document, DocumentAsset
+from backend.app.db.models import AssetKind, ChatMessage, Document, DocumentAsset
 from backend.app.db.repositories import AssetRepository
 from backend.app.main import create_app
 
@@ -233,3 +233,24 @@ def test_post_chat_saves_user_and_assistant_messages(monkeypatch):
     assert messages[0]["content"] == "方法是什么？"
     assert messages[1]["content"] == "回答：方法是什么？"
     assert messages[1]["related_chunks"][0]["section_label"] == "2 Method"
+
+
+def test_delete_document_removes_it_from_list_and_related_rows():
+    client = TestClient(create_app())
+    created = client.post("/api/documents/import-url", json={"value": "2401.12345"}).json()
+    with Session(get_engine()) as session:
+        session.add(
+            ChatMessage(
+                document_id=created["id"],
+                role="user",
+                content="这篇论文的方法是什么？",
+            )
+        )
+        session.commit()
+
+    response = client.delete(f"/api/documents/{created['id']}")
+
+    assert response.status_code == 204
+    assert client.get("/api/documents").json() == []
+    with Session(get_engine()) as session:
+        assert session.exec(select(ChatMessage)).all() == []
