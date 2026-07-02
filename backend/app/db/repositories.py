@@ -1,6 +1,14 @@
 from sqlmodel import Session, select
 
-from backend.app.db.models import AppSetting, Document, DocumentStatus, SourceType, utc_now
+from backend.app.db.models import (
+    AppSetting,
+    AssetKind,
+    Document,
+    DocumentAsset,
+    DocumentStatus,
+    SourceType,
+    utc_now,
+)
 
 
 class SettingsRepository:
@@ -37,13 +45,17 @@ class DocumentRepository:
         title: str,
         source_type: SourceType,
         original_url: str | None = None,
+        document_id: str | None = None,
     ) -> Document:
-        document = Document(
-            title=title,
-            source_type=source_type,
-            original_url=original_url,
-            status=DocumentStatus.QUEUED,
-        )
+        values = {
+            "title": title,
+            "source_type": source_type,
+            "original_url": original_url,
+            "status": DocumentStatus.QUEUED,
+        }
+        if document_id is not None:
+            values["id"] = document_id
+        document = Document(**values)
         self.session.add(document)
         self.session.commit()
         self.session.refresh(document)
@@ -65,3 +77,27 @@ class DocumentRepository:
         self.session.commit()
         self.session.refresh(document)
         return document
+
+
+class AssetRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def create_asset(
+        self,
+        *,
+        document_id: str,
+        kind: AssetKind,
+        path: str,
+        label: str | None = None,
+    ) -> DocumentAsset:
+        asset = DocumentAsset(
+            document_id=document_id,
+            kind=kind,
+            path=path,
+            label=label,
+        )
+        self.session.add(asset)
+        self.session.commit()
+        self.session.refresh(asset)
+        return asset

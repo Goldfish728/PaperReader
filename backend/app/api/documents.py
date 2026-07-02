@@ -1,16 +1,18 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session
 
 from backend.app.db.engine import get_session
-from backend.app.db.models import SourceType
-from backend.app.db.repositories import DocumentRepository
+from backend.app.db.models import AssetKind, SourceType, new_id
+from backend.app.db.repositories import AssetRepository, DocumentRepository
 from backend.app.schemas.documents import DocumentRead, ImportUrlRequest
+from backend.app.services.fetcher import save_uploaded_pdf
 from backend.app.services.source_detector import detect_text_source
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 SessionDependency = Annotated[Session, Depends(get_session)]
+UploadFileDependency = Annotated[UploadFile, File(...)]
 
 
 @router.get("", response_model=list[DocumentRead])
@@ -30,3 +32,26 @@ def import_url(payload: ImportUrlRequest, session: SessionDependency) -> Documen
         source_type=detected.source_type,
         original_url=original_url,
     )
+
+
+@router.post("/upload", response_model=DocumentRead)
+async def upload_pdf(file: UploadFileDependency, session: SessionDependency) -> DocumentRead:
+    document_id = new_id()
+    try:
+        path = await save_uploaded_pdf(document_id, file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    document = DocumentRepository(session).create_document(
+        document_id=document_id,
+        title=file.filename or "uploaded.pdf",
+        source_type=SourceType.UPLOADED_PDF,
+        original_url=None,
+    )
+    AssetRepository(session).create_asset(
+        document_id=document.id,
+        kind=AssetKind.ORIGINAL_PDF,
+        path=str(path),
+        label="Original PDF",
+    )
+    return document

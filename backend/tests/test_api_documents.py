@@ -59,3 +59,30 @@ def test_list_documents_returns_created_document():
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["source_type"] == "pdf_url"
+
+
+def test_upload_pdf_creates_document():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/documents/upload",
+        files={"file": ("paper.pdf", b"%PDF-1.7\nfake pdf bytes", "application/pdf")},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source_type"] == "uploaded_pdf"
+    assert body["status"] == "queued"
+    assert body["title"] == "paper.pdf"
+
+
+def test_upload_rejects_non_pdf():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/documents/upload",
+        files={"file": ("notes.txt", b"hello", "text/plain")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Only PDF uploads are supported in this version."
