@@ -1,0 +1,25 @@
+.DS_Store
+
+# Local app data and user-provided papers
+data/
+
+# Secrets and local environment overrides
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+build/
+
+# Test and tool caches
+.pytest_cache/
+.ruff_cache/
+coverage/
