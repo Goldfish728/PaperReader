@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 
-from backend.app.db.models import AppSetting, utc_now
+from backend.app.db.models import AppSetting, Document, DocumentStatus, SourceType, utc_now
 
 
 class SettingsRepository:
@@ -25,3 +25,43 @@ class SettingsRepository:
     def list_all(self) -> dict[str, str]:
         rows = self.session.exec(select(AppSetting)).all()
         return {row.key: row.value for row in rows}
+
+
+class DocumentRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def create_document(
+        self,
+        *,
+        title: str,
+        source_type: SourceType,
+        original_url: str | None = None,
+    ) -> Document:
+        document = Document(
+            title=title,
+            source_type=source_type,
+            original_url=original_url,
+            status=DocumentStatus.QUEUED,
+        )
+        self.session.add(document)
+        self.session.commit()
+        self.session.refresh(document)
+        return document
+
+    def list_documents(self) -> list[Document]:
+        return list(self.session.exec(select(Document).order_by(Document.created_at.desc())).all())
+
+    def update_status(
+        self,
+        document: Document,
+        status: DocumentStatus,
+        error_message: str | None = None,
+    ) -> Document:
+        document.status = status
+        document.error_message = error_message
+        document.updated_at = utc_now()
+        self.session.add(document)
+        self.session.commit()
+        self.session.refresh(document)
+        return document
