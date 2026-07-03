@@ -20,7 +20,7 @@ class ModelClient:
         temperature: float,
         transport: httpx.AsyncBaseTransport | None = None,
     ):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = _normalize_base_url(base_url)
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = timeout_seconds
@@ -53,3 +53,11 @@ class ModelClient:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise ValueError("Model response did not contain assistant content.") from exc
+
+
+def _normalize_base_url(base_url: str) -> str:
+    normalized = base_url.rstrip("/")
+    suffix = "/chat/completions"
+    if normalized.endswith(suffix):
+        return normalized[: -len(suffix)]
+    return normalized
