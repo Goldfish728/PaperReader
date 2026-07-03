@@ -11,13 +11,15 @@ export function NoteViewer({ document }: NoteViewerProps) {
     "structured_reading"
   );
   const [markdown, setMarkdown] = useState("");
+  const documentId = document?.id ?? null;
+  const documentStatus = document?.status ?? null;
 
   useEffect(() => {
     let cancelled = false;
     setMarkdown("");
-    if (!document || document.status !== "completed") return;
+    if (!documentId || documentStatus !== "completed") return;
     api
-      .getNote(document.id, tab)
+      .getNote(documentId, tab)
       .then((note) => {
         if (!cancelled) setMarkdown(note.markdown);
       })
@@ -27,7 +29,7 @@ export function NoteViewer({ document }: NoteViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, [document, tab]);
+  }, [documentId, documentStatus, tab]);
 
   if (!document) {
     return <div className="empty-state">选择或导入一篇文章</div>;
